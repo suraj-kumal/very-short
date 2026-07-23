@@ -1,4 +1,4 @@
-#url shortner
+# URL Shortner
 
 ## folder/file structure
 - main.go : Entry point of the application; initializes the server, database, and routes.
