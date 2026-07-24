@@ -1,4 +1,4 @@
-package very-short
+package very_short
 
 
 import "time"

@@ -1,4 +1,4 @@
-package main 
+package very_short 
 
 import (
 	"fmt"
@@ -6,9 +6,14 @@ import (
 )
 
 func main(){
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request){
-		fmt.Fprint(w, "Hello, You have requested : %s\n", r.URL.Path)
+	config := Load()
 
-	})
-	http.ListenAndServe(": 80", nil)
+	db , err := DatabaseConnection(config.DatabaseURL)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+
+	http.ListenAndServe(": 8773", nil)
 }
