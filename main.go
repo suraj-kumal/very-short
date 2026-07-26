@@ -11,15 +11,15 @@ func main(){
 	config := Load()
 	
 	//connect to database
-	db , err := DatabaseConnection(config.DatabaseURL)
+	conn , err := DatabaseConnection(config.DatabaseURL)
 
 	//if error is not absent
 	if err != nil {
 		log.Fatal(err)
 	}
 	
-	//store connection reference
-	store := NewStore(db)
+	//store connection reference to db 
+	store := NewStore(conn)
 
 	 
 

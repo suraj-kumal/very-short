@@ -1,6 +1,5 @@
 package very_short
 
-
 import "time"
 
 type url_data struct{
@@ -9,4 +8,8 @@ type url_data struct{
 	hash string
 	created_at time.Time
 	expire_at time.Time
+}
+
+type CreateShortURLRequest struct{
+	url string `json:"url"`
 }
