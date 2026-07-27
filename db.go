@@ -1,7 +1,6 @@
-package very_short
+package main
 
 import (
-	"os"
 	"database/sql"
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -10,7 +9,7 @@ import (
 type Store struct{
 	conn *sql.DB
 }
-func DatabaseConnection(databaseURL string)(*sql.DB, err){
+func DatabaseConnection(databaseURL string)(*sql.DB, error){
 	return sql.Open("mysql", databaseURL)
 }
 
@@ -20,13 +19,13 @@ func NewStore(conn *sql.DB) *Store{
 }
 
  func (s *Store)InsertURLToDb(url string)(id int, err error){
-	res, err = s.conn.Exec("Insert INTO url_data (url) VALUES (?)", url)
+	 res, err := s.conn.Exec("INSERT INTO url_data (url) VALUES (?)", url)
 
 	if err != nil{
 		return 0, err
 	}
 
-	lastID, err := res.LastInsertID()
+	lastID, err := res.LastInsertId()
 
 	if err != nil{
 		return 0, err
@@ -35,7 +34,7 @@ func NewStore(conn *sql.DB) *Store{
 	return int(lastID), nil
 }
 
- func (s *Store) InserHashToDb(id int, hash string) error{
+ func (s *Store) UpdateHashToDb(id int, hash string) error{
 	 _, err := s.conn.Exec("UPDATE url_data SET hash = ? WHERE id = ?", hash , id)
 
 	 if err != nil{

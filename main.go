@@ -1,7 +1,7 @@
-package very_short 
+package main
 
 import (
-	"fmt"
+	"log"
 	"net/http"
 )
 
@@ -17,14 +17,21 @@ func main(){
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	defer conn.Close()
 	
 	//store connection reference to db 
 	store := NewStore(conn)
 
-	 
+	h := New(store, config)
+
+	mux := http.NewServeMux()
+
+	h.RegisterRoutes(mux)
+
+	log.Println("litenting on", config.PORT)
+
+	log.Fatal(http.ListenAndServe(config.PORT, mux))
 
 
-
-
-	http.ListenAndServe(": 8773", nil)
 }

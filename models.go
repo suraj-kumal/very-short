@@ -1,8 +1,8 @@
-package very_short
+package main
 
 import "time"
 
-type url_data struct{
+type URL_data struct{
 	id int
 	url string
 	hash string
@@ -11,5 +11,5 @@ type url_data struct{
 }
 
 type CreateShortURLRequest struct{
-	url string `json:"url"`
+	URL string `json:"url"`
 }
