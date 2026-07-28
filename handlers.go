@@ -1,6 +1,7 @@
 package main
 
 import(
+	"log"
 	"encoding/json"
 	"net/http"
 )
@@ -38,6 +39,7 @@ func (h *Handler)CreateShortURL(w http.ResponseWriter,r *http.Request){
 	id, err := h.store.InsertURLToDb(ur.URL)
 	
 	if err != nil {
+		log.Println("insert error:", err)
 		http.Error(w, "something went wrong while insering", http.StatusInternalServerError)
 		return
 
