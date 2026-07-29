@@ -2,6 +2,7 @@ package main
 
 import(
 	"log"
+	"time"
 	"encoding/json"
 	"net/http"
 )
@@ -9,6 +10,8 @@ import(
 type UrlStore interface {
     InsertURLToDb(url string) (int, error)
     UpdateHashToDb(id int, hash string) error
+		GetURLFromDb(hash string) (string , time.Time, error)
+
 }
 
 type Handler struct{
@@ -40,7 +43,7 @@ func (h *Handler)CreateShortURL(w http.ResponseWriter,r *http.Request){
 	
 	if err != nil {
 		log.Println("insert error:", err)
-		http.Error(w, "something went wrong while insering", http.StatusInternalServerError)
+		http.Error(w, "something went wrong", http.StatusInternalServerError)
 		return
 
 	}
@@ -48,7 +51,7 @@ func (h *Handler)CreateShortURL(w http.ResponseWriter,r *http.Request){
 	hash := EncodeBase62(id)
 
 	if err := h.store.UpdateHashToDb(id, hash); err != nil{
-		http.Error(w, "something went wrong updating", http.StatusInternalServerError)
+		http.Error(w, "something went wrong", http.StatusInternalServerError)
 		return
 	}
 
@@ -60,6 +63,22 @@ func (h *Handler)CreateShortURL(w http.ResponseWriter,r *http.Request){
 
 }
 
-func (h *Handler)Redirect(w http.ResponseWriter, r *http.Request){
+func (h *Handler)RedirectURL(w http.ResponseWriter, r *http.Request){
+	hash := r.PathValue("hash")
+
+	time := time.Now()
+
+	log.Println(hash)
+
+	url , expire, err := GetURLFromDb(hash)
+
+	if err != nil{
+		log.Println("get url error:", err)
+		http.Error(w, "something went wrong", http.StatusInternalServerError)
+		return
+	}
+
+	if expire
+
 
 }
