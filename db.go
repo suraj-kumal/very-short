@@ -48,9 +48,6 @@ func (s *Store) UpdateHashToDb(id int, hash string) error {
 
 func (s *Store) GetURLFromDb(hash string)(url string , expire time.Time, err error){
 
-	var url string
-	var expire time.Time
-
 	err = s.conn.QueryRow("SELECT url, expire_at FROM url_data WHERE hash = ?", hash).Scan(&url, &expire)
 
 	if err != nil{

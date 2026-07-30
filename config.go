@@ -22,5 +22,6 @@ func Load() Config {
 		DatabaseURL: os.Getenv("DATABASE_URL"),
 		PORT:        ":" + os.Getenv("PORT"),
 		SITE_URL:     os.Getenv("SITE_URL"),
+		MixMultiplierSecret: os.Getenv("MIX_MULTIPLER_SECRET")
 	}
 }

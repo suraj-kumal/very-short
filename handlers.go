@@ -5,6 +5,9 @@ import(
 	"time"
 	"encoding/json"
 	"net/http"
+	"errors"
+	"database/sql"
+	"net/url"
 )
 
 type UrlStore interface {
@@ -27,14 +30,34 @@ func New(s UrlStore, config Config) *Handler{
 }
 }
 
+
+
+func isValidURL(rawURL string) bool {
+	u, err := url.ParseRequestURI(rawURL)
+	if err != nil {
+		return false
+	}
+	return u.Scheme == "http" || u.Scheme == "https"
+}
+
 func (h *Handler)CreateShortURL(w http.ResponseWriter,r *http.Request){
+
+
 	var ur CreateShortURLRequest
+
+
 
 	decoder := json.NewDecoder(r.Body)
 
 	err := decoder.Decode(&ur)
 
+	if !isValidURL(ur.URL) {
+		http.Error(w, "invalid url: must include http:// or https://", http.StatusBadRequest)
+		return
+	}	
+
 	if err != nil{
+		log.Println(err)
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -48,7 +71,7 @@ func (h *Handler)CreateShortURL(w http.ResponseWriter,r *http.Request){
 
 	}
   
-	hash := EncodeBase62(id)
+	hash := EncodeBase62(id, h.config.MixMultiplierSecret)
 
 	if err := h.store.UpdateHashToDb(id, hash); err != nil{
 		http.Error(w, "something went wrong", http.StatusInternalServerError)
@@ -63,22 +86,32 @@ func (h *Handler)CreateShortURL(w http.ResponseWriter,r *http.Request){
 
 }
 
+
 func (h *Handler)RedirectURL(w http.ResponseWriter, r *http.Request){
 	hash := r.PathValue("hash")
 
-	time := time.Now()
+	now := time.Now()
 
 	log.Println(hash)
 
-	url , expire, err := GetURLFromDb(hash)
+	url , expire, err := h.store.GetURLFromDb(hash)
 
 	if err != nil{
+
+		if errors.Is(err, sql.ErrNoRows){
+			http.Error(w, "URL not found", http.StatusNotFound)
+			return
+		}
 		log.Println("get url error:", err)
 		http.Error(w, "something went wrong", http.StatusInternalServerError)
 		return
 	}
 
-	if expire
+	if now.After(expire){
+		http.Error(w, "url has expire", http.StatusGone)
+		return
+	}
 
+	http.Redirect(w,r,url, http.StatusMovedPermanently)
 
 }
