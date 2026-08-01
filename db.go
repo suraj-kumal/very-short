@@ -21,8 +21,12 @@ func NewStore(conn *sql.DB) *Store {
 	return &Store{conn: conn}
 }
 
-func (s *Store) InsertURLToDb(url string) (id int, err error) {
-	res, err := s.conn.Exec("INSERT INTO url_data (url) VALUES (?)", url)
+func (s *Store) BeginTx()(*sql.Tx, error){
+	return s.conn.Begin()
+}
+
+func (s *Store) InsertURLToDb(tx *sql.Tx, url string) (id int, err error) {
+	res, err := tx.Exec("INSERT INTO url_data (url) VALUES (?)", url)
 
 	if err != nil {
 		return 0, err
@@ -37,8 +41,8 @@ func (s *Store) InsertURLToDb(url string) (id int, err error) {
 	return int(lastID), nil
 }
 
-func (s *Store) UpdateHashToDb(id int, hash string) error {
-	_, err := s.conn.Exec("UPDATE url_data SET hash = ? WHERE id = ?", hash, id)
+func (s *Store) UpdateHashToDb(tx *sql.Tx, id int, hash string) error {
+	_, err := tx.Exec("UPDATE url_data SET hash = ? WHERE id = ?", hash, id)
 
 	if err != nil {
 		return err

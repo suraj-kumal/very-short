@@ -28,7 +28,7 @@ func main(){
 
 	h.RegisterRoutes(mux)
 
-	log.Println("litenting on", config.PORT)
+	log.Println("listening on :", config.PORT)
 
 	log.Fatal(http.ListenAndServe(config.PORT, mux))
 
