@@ -19,15 +19,22 @@ type UrlStore interface {
 
 }
 
+type CacheStore interface {
+	Get(hash string) (string, bool)
+	Put(hash, url string, expire time.Time)
+}
+
 type Handler struct{
 	store UrlStore
 	config Config
+	cache CacheStore
 }
 
-func New(s UrlStore, config Config) *Handler{
+func New(s UrlStore, config Config, cache CacheStore) *Handler{
 	return &Handler{
 		store: s,
 		config: config,
+		cache : cache,
 
 }
 }
@@ -127,31 +134,37 @@ func (h *Handler)CreateShortURL(w http.ResponseWriter,r *http.Request){
 }
 
 
-func (h *Handler)RedirectURL(w http.ResponseWriter, r *http.Request){
+func (h *Handler) RedirectURL(w http.ResponseWriter, r *http.Request) {
 	hash := r.PathValue("hash")
 
-	now := time.Now()
+	// 1. Check cache first
+	if url, ok := h.cache.Get(hash); ok {
+		http.Redirect(w, r, url, http.StatusMovedPermanently)
+		return
+	}
 
-	log.Println(hash)
-
-	url , expire, err := h.store.GetURLFromDb(hash)
-
-	if err != nil{
-
-		if errors.Is(err, sql.ErrNoRows){
+	// 2. Cache miss -> query DB
+	url, expire, err := h.store.GetURLFromDb(hash)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
 			http.Error(w, "URL not found", http.StatusNotFound)
 			return
 		}
+
 		log.Println("get url error:", err)
 		http.Error(w, "something went wrong", http.StatusInternalServerError)
 		return
 	}
 
-	if now.After(expire){
-		http.Error(w, "url has expire", http.StatusGone)
+	// 3. Check expiration
+	if time.Now().After(expire) {
+		http.Error(w, "URL has expired", http.StatusGone)
 		return
 	}
 
-	http.Redirect(w,r,url, http.StatusMovedPermanently)
+	// 4. Store in cache
+	h.cache.Put(hash, url, expire)
 
+	// 5. Redirect
+	http.Redirect(w, r, url, http.StatusMovedPermanently)
 }

@@ -22,7 +22,10 @@ func main(){
 	//store connection reference to db 
 	store := NewStore(conn)
 
-	h := New(store, config)
+
+	cache := NewCache(1000)
+
+	h := New(store, config, cache)
 
 	mux := http.NewServeMux()
 
