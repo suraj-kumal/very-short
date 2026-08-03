@@ -1,7 +1,7 @@
 # URL Shortner
 
 ## folder/file structure
-- main.go : Entry point of the application; initializes the server, database, and routes.
+j main.go : Entry point of the application; initializes the server, database, and routes.
 - handlers.go : Contains HTTP request handlers for shortening URLs and redirecting users.
 - models.go : Defines the application's data models and structures.
 - db.go : Manages the database connection and database operations.
