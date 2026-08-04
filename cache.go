@@ -1,13 +1,14 @@
 package main
 
 import (
+	"sync"
 	"time"
 )
 
-
-type Cache struct{
+type Cache struct {
+	mu        sync.RWMutex
 	capacaity int
-	size int
+	size      int
 
 	items map[string]*Node
 
@@ -15,46 +16,48 @@ type Cache struct{
 	tail *Node
 }
 
-type Node struct{
-
-	//hash is key
-	hash string
-	url string
-	expire time.Time
-	dirty bool
+type Node struct {
+	// hash is key
+	hash           string
+	url            string
+	expire         time.Time
+	dirty          bool
 	lastAccessTime time.Time
 
 	next *Node
 	prev *Node
 }
 
-//constructor
+type DirtyNode struct {
+	Hash           string
+	LastAccessTime time.Time
+}
 
-func NewCache(capacaity int) *Cache{
+// constructor
+func NewCache(capacaity int) *Cache {
 	return &Cache{
-		capacaity :capacaity,
-		items : make(map[string]*Node),
-		head : nil,
-		tail : nil,
+		capacaity: capacaity,
+		items:     make(map[string]*Node),
+		head:      nil,
+		tail:      nil,
 	}
 }
 
-func (c *Cache)addToFront(node *Node){
+func (c *Cache) addToFront(node *Node) {
 	node.prev = nil
 	node.next = c.head
 
-	if c.head != nil{
+	if c.head != nil {
 		c.head.prev = node
 	}
 
 	c.head = node
 
-	if c.tail == nil{
+	if c.tail == nil {
 		c.tail = node
 	}
 
 	c.size++
-
 }
 
 func (c *Cache) remove(node *Node) {
@@ -82,7 +85,6 @@ func (c *Cache) remove(node *Node) {
 	c.size--
 }
 
-
 func (c *Cache) moveToFront(node *Node) {
 	if node == c.head {
 		return
@@ -93,6 +95,9 @@ func (c *Cache) moveToFront(node *Node) {
 }
 
 func (c *Cache) Get(hash string) (string, bool) {
+	c.mu.Lock()
+
+	defer c.mu.Unlock()
 	node, ok := c.items[hash]
 	if !ok {
 		return "", false
@@ -106,19 +111,22 @@ func (c *Cache) Get(hash string) (string, bool) {
 	}
 
 	node.lastAccessTime = time.Now()
+	node.dirty = true
 	c.moveToFront(node)
 
 	return node.url, true
 }
 
+func (c *Cache) Put(hash, url string, expire time.Time, dirty bool) {
+	c.mu.Lock()
 
+	defer c.mu.Unlock()
 
-func (c *Cache) Put(hash, url string, expire time.Time) {
 	if node, ok := c.items[hash]; ok {
 		node.url = url
 		node.expire = expire
 		node.lastAccessTime = time.Now()
-		node.dirty = true
+		node.dirty = dirty
 
 		c.moveToFront(node)
 		return
@@ -129,6 +137,7 @@ func (c *Cache) Put(hash, url string, expire time.Time) {
 		url:            url,
 		expire:         expire,
 		lastAccessTime: time.Now(),
+		dirty:          dirty,
 	}
 
 	c.items[hash] = node
@@ -139,4 +148,53 @@ func (c *Cache) Put(hash, url string, expire time.Time) {
 		c.remove(lru)
 		delete(c.items, lru.hash)
 	}
+}
+
+func (c *Cache) GetDirtyNodes() []DirtyNode {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	dirtyNodes := make([]DirtyNode, 0)
+
+	for _, node := range c.items {
+		if node.dirty {
+			dirtyNodes = append(dirtyNodes, DirtyNode{
+				Hash:           node.hash,
+				LastAccessTime: node.lastAccessTime,
+			})
+		}
+	}
+
+	return dirtyNodes
+}
+
+func (c *Cache) MarkClean(nodes []DirtyNode) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	for _, dirtyNode := range nodes {
+		node, ok := c.items[dirtyNode.Hash]
+
+		if !ok {
+			continue
+		}
+
+		// Only clean if it was not updated again
+		if node.lastAccessTime.Equal(dirtyNode.LastAccessTime) {
+			node.dirty = false
+		}
+	}
+}
+
+func (c *Cache) Touch(hash string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	node, ok := c.items[hash]
+	if !ok {
+		return
+	}
+
+	node.lastAccessTime = time.Now()
+	node.dirty = true
 }

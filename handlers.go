@@ -10,30 +10,45 @@ import (
 	"time"
 )
 
-type UrlStore interface {
+type URLStore interface {
 	BeginTx() (*sql.Tx, error)
 
-	InsertURLToDb(tx *sql.Tx, url string) (int, error)
-	UpdateHashToDb(tx *sql.Tx, id int, hash string) error
-	GetURLFromDb(hash string) (string, time.Time, error)
+	InsertURLToDB(tx *sql.Tx, url string) (int, error)
+	UpdateHashToDB(tx *sql.Tx, id int, hash string) error
+	GetURLFromDB(hash string) (string, time.Time, error)
+
+	UpdateLastAccessTimes(nodes []DirtyNode) error
 }
 
 type CacheStore interface {
 	Get(hash string) (string, bool)
-	Put(hash, url string, expire time.Time)
+	Put(hash, url string, expire time.Time, dirty bool)
+	GetDirtyNodes() []DirtyNode
+	MarkClean(nodes []DirtyNode)
+	Touch(hash string)
+}
+
+type LastSync interface {
+	Set(time.Time)
+	Get() time.Time
+	CheckInterval(time.Time) int
+	TryStartSync() bool
+	FinishSync()
 }
 
 type Handler struct {
-	store  UrlStore
-	config Config
-	cache  CacheStore
+	store         URLStore
+	config        Config
+	cache         CacheStore
+	lastSyncState LastSync
 }
 
-func New(s UrlStore, config Config, cache CacheStore) *Handler {
+func New(s URLStore, config Config, cache CacheStore, lastSyncState LastSync) *Handler {
 	return &Handler{
-		store:  s,
-		config: config,
-		cache:  cache,
+		store:         s,
+		config:        config,
+		cache:         cache,
+		lastSyncState: lastSyncState,
 	}
 }
 
@@ -49,9 +64,7 @@ func (h *Handler) CreateShortURL(w http.ResponseWriter, r *http.Request) {
 	var ur CreateShortURLRequest
 
 	decoder := json.NewDecoder(r.Body)
-
-	err := decoder.Decode(&ur)
-	if err != nil {
+	if err := decoder.Decode(&ur); err != nil {
 		log.Println(err)
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
@@ -62,69 +75,76 @@ func (h *Handler) CreateShortURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	start := time.Now()
-
 	tx, err := h.store.BeginTx()
-
-	log.Println("begin took:", time.Since(start))
-
 	if err != nil {
-		log.Println("start transaction fail :", err)
+		log.Println("start transaction fail:", err)
 		http.Error(w, "something went wrong", http.StatusInternalServerError)
 		return
 	}
 	defer tx.Rollback()
 
-	t2 := time.Now()
-	id, err := h.store.InsertURLToDb(tx, ur.URL)
-	log.Println("insert took:", time.Since(t2))
-
+	id, err := h.store.InsertURLToDB(tx, ur.URL)
 	if err != nil {
 		log.Println("insert error:", err)
 		http.Error(w, "something went wrong", http.StatusInternalServerError)
 		return
-
 	}
 
 	hash := EncodeBase62(id, h.config.MixMultiplierSecret)
 
-	t3 := time.Now()
-
-	if err := h.store.UpdateHashToDb(tx, id, hash); err != nil {
+	if err := h.store.UpdateHashToDB(tx, id, hash); err != nil {
 		log.Println("update error:", err)
 		http.Error(w, "something went wrong", http.StatusInternalServerError)
 		return
 	}
-	log.Println("update took:", time.Since(t3))
 
-	t4 := time.Now()
-
-	err = tx.Commit()
-	log.Println("commit took:", time.Since(t4))
-
-	if err != nil {
-		log.Println("update error:", err)
+	if err := tx.Commit(); err != nil {
+		log.Println("commit error:", err)
 		http.Error(w, "something went wrong", http.StatusInternalServerError)
 		return
-
 	}
 
 	shortURL := h.config.SITE_URL + "/" + hash
 
-	json.NewEncoder(w).Encode(map[string]string{"short_url": shortURL})
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(map[string]string{"short_url": shortURL}); err != nil {
+		log.Println("response encode error:", err)
+	}
 }
 
-func (h *Handler) RedirectURL(w http.ResponseWriter, r *http.Request) {
-	hash := r.PathValue("hash")
+func (h *Handler) SyncLastAccessTime() {
+	dirtyNodes := h.cache.GetDirtyNodes()
 
-	// 1. Check cache first
-	if url, ok := h.cache.Get(hash); ok {
-		http.Redirect(w, r, url, http.StatusMovedPermanently)
+	if len(dirtyNodes) == 0 {
 		return
 	}
 
-	// 2. Cache miss -> query DB
-	url, expire, err := h.store.GetURLFromDb(hash)
+	if err := h.store.UpdateLastAccessTimes(dirtyNodes); err != nil {
+		log.Println("sync failed:", err)
+		return
+	}
+
+	h.cache.MarkClean(dirtyNodes)
+}
+
+func (h *Handler) RedirectURL(w http.ResponseWriter, r *http.Request) {
+	if h.lastSyncState.TryStartSync() {
+		go func() {
+			defer h.lastSyncState.FinishSync()
+			h.SyncLastAccessTime()
+		}()
+	}
+
+	hash := r.PathValue("hash")
+
+	// Cache hit — Get() already updates lastAccessTime/dirty/MRU internally
+	if url, ok := h.cache.Get(hash); ok {
+		http.Redirect(w, r, url, http.StatusFound)
+		return
+	}
+
+	// Cache miss
+	url, expire, err := h.store.GetURLFromDB(hash)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			http.Error(w, "URL not found", http.StatusNotFound)
@@ -136,16 +156,18 @@ func (h *Handler) RedirectURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 3. Check expiration
 	if time.Now().After(expire) {
 		http.Error(w, "URL has expired", http.StatusGone)
 		return
 	}
-	// 4. Store in cache
-	h.cache.Put(hash, url, expire)
 
-	// 5. Redirect
-	http.Redirect(w, r, url, http.StatusMovedPermanently)
+	// Load into cache, already synchronized with DB
+	h.cache.Put(hash, url, expire, false)
+
+	// This request accessed it
+	h.cache.Touch(hash)
+
+	http.Redirect(w, r, url, http.StatusFound)
 }
 
 func (h *Handler) HomePage(w http.ResponseWriter, r *http.Request) {
