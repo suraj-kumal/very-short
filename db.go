@@ -66,7 +66,7 @@ func (s *Store) UpdateLastAccessTimes(nodes []DirtyNode) error {
 
 	stmt, err := tx.Prepare(`
 		UPDATE url_data
-		SET last_access_time = ?
+		SET LastAccessTime = ?
 		WHERE hash = ?
 	`)
 	if err != nil {
@@ -97,10 +97,10 @@ type URLRecord struct {
 
 func (s *Store) GetHotURLs(limit int) ([]URLRecord, error) {
 	rows, err := s.conn.Query(`
-		SELECT hash, url, expire_at, last_access_time
+		SELECT hash, url, expire_at, LastAccessTime
 		FROM url_data
 		WHERE expire_at > NOW()
-		ORDER BY last_access_time DESC
+		ORDER BY LastAccessTime DESC
 		LIMIT ?
 	`, limit)
 	if err != nil {

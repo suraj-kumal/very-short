@@ -2,11 +2,11 @@ package main
 
 import (
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
 	"net/url"
+	"text/template"
 	"time"
 )
 
@@ -60,25 +60,51 @@ func isValidURL(rawURL string) bool {
 	return u.Scheme == "http" || u.Scheme == "https"
 }
 
+var (
+	resultSuccessTmpl = template.Must(template.New("success").Parse(`
+		<div class="mono text-sm">
+			<div class="flex items-center justify-between border-b hairline pb-3 mb-3">
+				<span class="index-num">STATUS : </span>
+				<span style="color:var(--ink)">CREATED</span>
+			</div>
+			<div class="flex items-center justify-between gap-3">
+				<span class="text-lg break-all" style="color:var(--red)">{{.ShortURL}}</span>
+				<button type="button"
+					class="btn"
+					style="padding:0.5rem 1rem; white-space:nowrap"
+					onclick="copyShortURL(this, '{{.ShortURL}}')">
+					Copy
+				</button>
+			</div>
+		</div>`))
+
+	resultErrorTmpl = template.Must(template.New("error").Parse(`
+<div class="mono text-sm pl-3" style="border-left:2px solid var(--red); color:var(--ink-soft)">
+	<span class="index-num" style="color:var(--red)">ERROR</span><br>
+	{{.Message}}
+</div>`))
+)
+
+func writeResult(w http.ResponseWriter, status int, tmpl *template.Template, data any) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
+	_ = tmpl.Execute(w, data)
+}
+
 func (h *Handler) CreateShortURL(w http.ResponseWriter, r *http.Request) {
-	var ur CreateShortURLRequest
-
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&ur); err != nil {
-		log.Println(err)
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+	if err := r.ParseForm(); err != nil {
+		writeResult(w, http.StatusBadRequest, resultErrorTmpl, struct{ Message string }{"Invalid request body."})
 		return
 	}
-
+	ur := CreateShortURLRequest{URL: r.FormValue("url")}
 	if !isValidURL(ur.URL) {
-		http.Error(w, "invalid url: must include http:// or https://", http.StatusBadRequest)
+		writeResult(w, http.StatusBadRequest, resultErrorTmpl, struct{ Message string }{"URL must include http:// or https://"})
 		return
 	}
-
 	tx, err := h.store.BeginTx()
 	if err != nil {
 		log.Println("start transaction fail:", err)
-		http.Error(w, "something went wrong", http.StatusInternalServerError)
+		writeResult(w, http.StatusInternalServerError, resultErrorTmpl, struct{ Message string }{"Something went wrong."})
 		return
 	}
 	defer tx.Rollback()
@@ -86,30 +112,23 @@ func (h *Handler) CreateShortURL(w http.ResponseWriter, r *http.Request) {
 	id, err := h.store.InsertURLToDB(tx, ur.URL)
 	if err != nil {
 		log.Println("insert error:", err)
-		http.Error(w, "something went wrong", http.StatusInternalServerError)
+		writeResult(w, http.StatusInternalServerError, resultErrorTmpl, struct{ Message string }{"Something went wrong."})
 		return
 	}
-
 	hash := EncodeBase62(id, h.config.MixMultiplierSecret)
-
 	if err := h.store.UpdateHashToDB(tx, id, hash); err != nil {
 		log.Println("update error:", err)
-		http.Error(w, "something went wrong", http.StatusInternalServerError)
+		writeResult(w, http.StatusInternalServerError, resultErrorTmpl, struct{ Message string }{"Something went wrong."})
 		return
 	}
-
 	if err := tx.Commit(); err != nil {
 		log.Println("commit error:", err)
-		http.Error(w, "something went wrong", http.StatusInternalServerError)
+		writeResult(w, http.StatusInternalServerError, resultErrorTmpl, struct{ Message string }{"Something went wrong."})
 		return
 	}
 
 	shortURL := h.config.SITE_URL + "/" + hash
-
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(map[string]string{"short_url": shortURL}); err != nil {
-		log.Println("response encode error:", err)
-	}
+	writeResult(w, http.StatusCreated, resultSuccessTmpl, struct{ ShortURL string }{shortURL})
 }
 
 func (h *Handler) SyncLastAccessTime() {
@@ -147,17 +166,17 @@ func (h *Handler) RedirectURL(w http.ResponseWriter, r *http.Request) {
 	url, expire, err := h.store.GetURLFromDB(hash)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			http.Error(w, "URL not found", http.StatusNotFound)
+			http.ServeFile(w, r, "static/404.html")
 			return
 		}
 
 		log.Println("get url error:", err)
-		http.Error(w, "something went wrong", http.StatusInternalServerError)
+		http.ServeFile(w, r, "static/500.html")
 		return
 	}
 
 	if time.Now().After(expire) {
-		http.Error(w, "URL has expired", http.StatusGone)
+		http.ServeFile(w, r, "static/410.html")
 		return
 	}
 

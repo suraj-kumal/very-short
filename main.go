@@ -38,8 +38,6 @@ func main() {
 	h := New(store, config, cache, timeSync)
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
-	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
-
 	log.Println("listening on:", config.PORT)
 	if err := http.ListenAndServe(config.PORT, mux); err != nil {
 		log.Println("server error:", err)

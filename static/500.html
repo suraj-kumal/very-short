@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>404 - Lost Page</title>
+<title>500 - Server Error</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -31,7 +31,6 @@
     -webkit-font-smoothing:antialiased;
   }
   .mono{ font-family:var(--mono); }
-  .hairline{ border-color:var(--line); }
   ::selection{ background:var(--red); color:#fff; }
 
   header{
@@ -92,27 +91,42 @@
     border:1px solid var(--ink);
     position:relative;
     cursor:pointer;
-    transition:transform .3s ease;
+    transition:transform .3s ease, background .15s ease;
   }
-  .bot:hover{
-    transform:rotate(3deg) scale(1.04);
-  }
+  .bot:hover{ transform:rotate(-4deg) scale(1.05); }
+
   .eye{
-    width:10px;
-    height:10px;
+    width:12px;
+    height:2px;
     background:var(--red);
     position:absolute;
-    top:24px;
+    top:28px;
   }
-  .eye.left{ left:26px; }
-  .eye.right{ right:26px; }
+  .eye.left{ left:24px; transform:rotate(45deg); }
+  .eye.left::after{
+    content:"";
+    position:absolute;
+    width:12px;
+    height:2px;
+    background:var(--red);
+    transform:rotate(-90deg);
+  }
+  .eye.right{ right:24px; transform:rotate(-45deg); }
+  .eye.right::after{
+    content:"";
+    position:absolute;
+    width:12px;
+    height:2px;
+    background:var(--red);
+    transform:rotate(-90deg);
+  }
   .mouth{
-    width:34px;
-    height:6px;
+    width:30px;
+    height:2px;
     background:var(--paper);
     position:absolute;
-    bottom:20px;
-    left:33px;
+    bottom:24px;
+    left:35px;
   }
 
   button{
@@ -128,10 +142,7 @@
     cursor:pointer;
     transition:background .15s ease, color .15s ease;
   }
-  button:hover{
-    background:var(--paper);
-    color:var(--ink);
-  }
+  button:hover{ background:var(--paper); color:var(--ink); }
   button:focus{ outline:2px solid var(--red); outline-offset:2px; }
 
   #message{
@@ -142,15 +153,17 @@
     color:var(--ink-soft);
   }
 
-  .shake{ animation: shake .4s; }
-  @keyframes shake {
-    0%,100% { transform: translateX(0); }
-    25% { transform: translateX(-8px); }
-    75% { transform: translateX(8px); }
+  .glitch{ animation: glitch .4s; }
+  @keyframes glitch {
+    0%,100% { transform: translateX(0); background:var(--ink); }
+    20% { transform: translateX(-6px); background:var(--red); }
+    40% { transform: translateX(5px); background:var(--ink); }
+    60% { transform: translateX(-4px); background:var(--red); }
+    80% { transform: translateX(3px); background:var(--ink); }
   }
   @media (prefers-reduced-motion: reduce){
     .bot, button{ transition:none; }
-    .shake{ animation:none; }
+    .glitch{ animation:none; }
   }
 </style>
 </head>
@@ -158,44 +171,44 @@
 
 <header>
   <span class="mono eyebrow">SK.REDIRECTME.NET</span>
-  <span class="mono eyebrow" style="color:var(--ink-soft)">ERROR — 404</span>
+  <span class="mono eyebrow" style="color:var(--ink-soft)">ERROR — 500</span>
 </header>
 
 <main>
   <div class="container">
-    <span class="index-num">STATUS — NOT FOUND</span>
-    <h1>4<span>0</span>4</h1>
+    <span class="index-num">STATUS — SERVER ERROR</span>
+    <h1>5<span>0</span>0</h1>
     <div class="bot" id="bot">
       <div class="eye left"></div>
       <div class="eye right"></div>
       <div class="mouth"></div>
     </div>
     <p>
-      This page went on vacation.<br>
-      We checked everywhere. Even under the keyboard.
+      Something broke on our end.<br>
+      Not you. Definitely us this time.
     </p>
-    <button onclick="findPage()">Ask the robot</button>
+    <button onclick="rebootBot()">Reboot the robot</button>
     <div id="message"></div>
   </div>
 </main>
 
 <script>
   const messages = [
-    "Robot says: Nope. Still missing.",
-    "I searched the internet. It was awkward.",
-    "The page is probably hiding from responsibility.",
-    "404 detected. Snacks recommended.",
-    "Maybe the page needs a GPS?"
+    "Robot says: I panicked and forgot everything.",
+    "500: my fault, not yours.",
+    "Currently debugging myself.",
+    "Give me a second, rebooting brain.",
+    "Stack traces everywhere. Send help."
   ];
-  function findPage() {
+  function rebootBot() {
     const bot = document.getElementById("bot");
     const msg = document.getElementById("message");
-    bot.classList.remove("shake");
+    bot.classList.remove("glitch");
     void bot.offsetWidth;
-    bot.classList.add("shake");
+    bot.classList.add("glitch");
     msg.textContent = messages[Math.floor(Math.random() * messages.length)];
   }
-  document.getElementById("bot").onclick = findPage;
+  document.getElementById("bot").onclick = rebootBot;
 </script>
 </body>
 </html>

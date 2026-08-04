@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>404 - Lost Page</title>
+<title>410 - Link Expired</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -31,7 +31,6 @@
     -webkit-font-smoothing:antialiased;
   }
   .mono{ font-family:var(--mono); }
-  .hairline{ border-color:var(--line); }
   ::selection{ background:var(--red); color:#fff; }
 
   header{
@@ -84,35 +83,47 @@
     margin:1.25rem 0 0;
   }
 
+  .bot-wrap{
+    position:relative;
+    width:100px;
+    margin:2rem auto 0.5rem;
+  }
   .bot{
     width:100px;
     height:80px;
-    margin:2rem auto 0.5rem;
     background:var(--ink);
     border:1px solid var(--ink);
     position:relative;
     cursor:pointer;
     transition:transform .3s ease;
   }
-  .bot:hover{
-    transform:rotate(3deg) scale(1.04);
-  }
+  .bot:hover{ transform:rotate(-2deg) scale(1.03); }
+
   .eye{
-    width:10px;
-    height:10px;
-    background:var(--red);
-    position:absolute;
-    top:24px;
-  }
-  .eye.left{ left:26px; }
-  .eye.right{ right:26px; }
-  .mouth{
-    width:34px;
-    height:6px;
+    width:14px;
+    height:2px;
     background:var(--paper);
     position:absolute;
-    bottom:20px;
-    left:33px;
+    top:29px;
+  }
+  .eye.left{ left:24px; }
+  .eye.right{ right:24px; }
+  .mouth{
+    width:30px;
+    height:2px;
+    background:var(--paper);
+    position:absolute;
+    bottom:24px;
+    left:35px;
+  }
+  .zzz{
+    position:absolute;
+    top:-14px;
+    right:-6px;
+    font-family:var(--mono);
+    font-size:0.7rem;
+    color:var(--ink-soft);
+    letter-spacing:0.05em;
   }
 
   button{
@@ -128,10 +139,7 @@
     cursor:pointer;
     transition:background .15s ease, color .15s ease;
   }
-  button:hover{
-    background:var(--paper);
-    color:var(--ink);
-  }
+  button:hover{ background:var(--paper); color:var(--ink); }
   button:focus{ outline:2px solid var(--red); outline-offset:2px; }
 
   #message{
@@ -142,15 +150,14 @@
     color:var(--ink-soft);
   }
 
-  .shake{ animation: shake .4s; }
-  @keyframes shake {
-    0%,100% { transform: translateX(0); }
-    25% { transform: translateX(-8px); }
-    75% { transform: translateX(8px); }
+  .nudge{ animation: nudge .4s; }
+  @keyframes nudge {
+    0%,100% { transform: translateY(0); }
+    50% { transform: translateY(4px); }
   }
   @media (prefers-reduced-motion: reduce){
     .bot, button{ transition:none; }
-    .shake{ animation:none; }
+    .nudge{ animation:none; }
   }
 </style>
 </head>
@@ -158,21 +165,24 @@
 
 <header>
   <span class="mono eyebrow">SK.REDIRECTME.NET</span>
-  <span class="mono eyebrow" style="color:var(--ink-soft)">ERROR — 404</span>
+  <span class="mono eyebrow" style="color:var(--ink-soft)">ERROR — 410</span>
 </header>
 
 <main>
   <div class="container">
-    <span class="index-num">STATUS — NOT FOUND</span>
-    <h1>4<span>0</span>4</h1>
-    <div class="bot" id="bot">
-      <div class="eye left"></div>
-      <div class="eye right"></div>
-      <div class="mouth"></div>
+    <span class="index-num">STATUS — EXPIRED</span>
+    <h1>4<span>1</span>0</h1>
+    <div class="bot-wrap">
+      <div class="bot" id="bot">
+        <span class="zzz">zzz</span>
+        <div class="eye left"></div>
+        <div class="eye right"></div>
+        <div class="mouth"></div>
+      </div>
     </div>
     <p>
-      This page went on vacation.<br>
-      We checked everywhere. Even under the keyboard.
+      This link had a shelf life.<br>
+      It quietly expired. No drama.
     </p>
     <button onclick="findPage()">Ask the robot</button>
     <div id="message"></div>
@@ -181,18 +191,18 @@
 
 <script>
   const messages = [
-    "Robot says: Nope. Still missing.",
-    "I searched the internet. It was awkward.",
-    "The page is probably hiding from responsibility.",
-    "404 detected. Snacks recommended.",
-    "Maybe the page needs a GPS?"
+    "Robot says: even links need to retire.",
+    "It's in link heaven now.",
+    "Time caught up with it. Sorry.",
+    "Gone, like your last Friday plans.",
+    "It expired faster than milk."
   ];
   function findPage() {
     const bot = document.getElementById("bot");
     const msg = document.getElementById("message");
-    bot.classList.remove("shake");
+    bot.classList.remove("nudge");
     void bot.offsetWidth;
-    bot.classList.add("shake");
+    bot.classList.add("nudge");
     msg.textContent = messages[Math.floor(Math.random() * messages.length)];
   }
   document.getElementById("bot").onclick = findPage;
