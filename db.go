@@ -13,7 +13,23 @@ type Store struct {
 }
 
 func DatabaseConnection(databaseURL string) (*sql.DB, error) {
-	return sql.Open("mysql", databaseURL)
+	db, err := sql.Open("mysql", databaseURL)
+	if err != nil {
+		return nil, err
+	}
+
+	// Connection pool
+	db.SetMaxOpenConns(10)
+	db.SetMaxIdleConns(5)
+	db.SetConnMaxLifetime(30 * time.Minute)
+	db.SetConnMaxIdleTime(10 * time.Minute)
+
+	if err := db.Ping(); err != nil {
+		db.Close()
+		return nil, err
+	}
+
+	return db, nil
 }
 
 // recieves database dependency and injects it into the store
