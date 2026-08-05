@@ -3,31 +3,31 @@ package main
 import (
 	"os"
 	"strconv"
+
 	"github.com/joho/godotenv"
 )
 
 type Config struct {
-	DatabaseURL string
-	PORT        string
-	SITE_URL     string
+	DatabaseURL         string
+	PORT                string
+	SITE_URL            string
 	MixMultiplierSecret int
 }
 
 func Load() Config {
-	err := godotenv.Load()
-	if err != nil {
-		panic("Error loading .env file")
-	}
+	_ = godotenv.Load()
+	//if err != nil {
+	//panic("Error loading .env file")
+	//}
 	multiplier, err := strconv.Atoi(os.Getenv("MIX_MULTIPLIER_SECRET"))
-  if err != nil {
-     panic("MIX_MULTIPLIER_SECRET must be a number")
-  }
-
+	if err != nil {
+		panic("MIX_MULTIPLIER_SECRET must be a number")
+	}
 
 	return Config{
-		DatabaseURL: os.Getenv("DATABASE_URL"),
-		PORT:        ":" + os.Getenv("PORT"),
-		SITE_URL:     os.Getenv("SITE_URL"),
+		DatabaseURL:         os.Getenv("DATABASE_URL"),
+		PORT:                ":" + os.Getenv("PORT"),
+		SITE_URL:            os.Getenv("SITE_URL"),
 		MixMultiplierSecret: multiplier,
 	}
 }
