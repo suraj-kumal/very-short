@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"text/template"
 	"time"
 )
@@ -189,6 +190,63 @@ func (h *Handler) RedirectURL(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, url, http.StatusFound)
 }
 
+func (h *Handler) CreateLongURL(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		writeResult(w, http.StatusBadRequest, resultErrorTmpl, struct{ Message string }{"Invalid request body."})
+		return
+	}
+	ur := CreateShortURLRequest{URL: r.FormValue("url")}
+	if !isValidURL(ur.URL) {
+		writeResult(w, http.StatusBadRequest, resultErrorTmpl, struct{ Message string }{"URL must include http:// or https://"})
+		return
+	}
+	tx, err := h.store.BeginTx()
+	if err != nil {
+		log.Println("start transaction fail:", err)
+		writeResult(w, http.StatusInternalServerError, resultErrorTmpl, struct{ Message string }{"Something went wrong."})
+		return
+	}
+	defer tx.Rollback()
+
+	id, err := h.store.InsertURLToDB(tx, ur.URL)
+	if err != nil {
+		log.Println("insert error:", err)
+		writeResult(w, http.StatusInternalServerError, resultErrorTmpl, struct{ Message string }{"Something went wrong."})
+		return
+	}
+	hash := EncodeBase62(id, h.config.MixMultiplierSecret)
+	if err := h.store.UpdateHashToDB(tx, id, hash); err != nil {
+		log.Println("update error:", err)
+		writeResult(w, http.StatusInternalServerError, resultErrorTmpl, struct{ Message string }{"Something went wrong."})
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		log.Println("commit error:", err)
+		writeResult(w, http.StatusInternalServerError, resultErrorTmpl, struct{ Message string }{"Something went wrong."})
+		return
+	}
+
+	shortURL := h.config.SITE_URL + `/this/is/a/very/very/very/very/very/very/very/very/very/very/long/url/path/with/many/very/very/very/very/very/very/very/very/very/very/long/segments/that/keep/going/on/and/on/without/ending/until/it/becomes/an/extremely/long/url/path/with/more/very/very/very/very/very/very/very/very/very/very/very/very/long/parts/and/even/more/segments/that/continue/for/a/long/time/` + hash
+
+	writeResult(w, http.StatusCreated, resultSuccessTmpl, struct{ ShortURL string }{shortURL})
+}
+
 func (h *Handler) HomePage(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, "static/index.html")
+}
+
+func (h *Handler) LongURLPage(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, "static/long.html")
+}
+func (h *Handler) NotFoundHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusNotFound)
+
+	data, err := os.ReadFile("static/404.html")
+	if err != nil {
+		http.Error(w, "404 page not found", http.StatusNotFound)
+		return
+	}
+
+	w.Write(data)
 }

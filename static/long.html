@@ -41,11 +41,13 @@
   ::selection{ background:var(--red); color:#fff; }
 
   .headline{
-    font-weight:800;
-    letter-spacing:-0.03em;
-    line-height:0.92;
-    font-size:clamp(2.75rem, 6.4vw, 5.5rem);
-  }
+  font-weight:800;
+  letter-spacing:-0.03em;
+  line-height:0.92;
+  font-size:clamp(2.75rem, 4vw, 5.5rem);
+  overflow-wrap:break-word;
+  word-break:break-word;
+}
   .eyebrow{
     font-family:var(--mono);
     font-size:0.7rem;
@@ -105,7 +107,6 @@
     .link-row:hover .link-label{ color:var(--red); }
     .link-row:hover .link-arrow{ color:var(--red); transform:translateX(3px); }
 
-
   @media (prefers-reduced-motion: reduce){
     .btn{ transition:none; }
   }
@@ -127,6 +128,7 @@ function copyShortURL(btn, url) {
 <header class="border-b hairline">
   <div class="max-w-6xl mx-auto px-6 md:px-10 py-5 flex items-center justify-between">
     <span class="mono eyebrow">SANO.REDIRECTME.NET</span>
+    <!--<span class="mono eyebrow" style="color:var(--ink-soft)">GO / HTMX / MYSQL — AIVEN</span>-->
   </div>
 </header>
 
@@ -136,18 +138,18 @@ function copyShortURL(btn, url) {
     <!-- left: headline -->
     <div class="md:col-span-5 py-14 md:py-20 md:pr-10 flex flex-col justify-between">
       <h1 class="headline">
-        SHORTEN<br>
-        LONG<br>
+        LENGTHEN<br>
+        SHORT<br>
         <span style="color:var(--red)">URLS.</span>
       </h1>
       <p class="mono eyebrow mt-10 leading-relaxed" style="color:var(--ink-soft)">
-          HIGH-PERFORMANCE URL SHORTENER WITH BLAZING-FAST, LOW-LATENCY REDIRECTS
+          A SOLUTION THAT NO ONE HAD A PROBLEM WITH. BUT BLAZING-FAST, LOW-LATENCY REDIRECTS
       </p>
     </div>
 
     <!-- right: functional panel -->
     <div class="md:col-span-7 md:border-l hairline md:pl-10 py-14 md:py-20">
-      <form hx-post="/shorten" hx-target="#result" hx-swap="innerHTML" class="space-y-8">
+      <form hx-post="/makeitlong" hx-target="#result" hx-swap="innerHTML" class="space-y-8">
 
         <div>
           <div class="flex items-baseline justify-between mb-3">
@@ -162,13 +164,13 @@ function copyShortURL(btn, url) {
             required
             pattern="https?://.+"
             title="URL must start with http:// or https://"
-            placeholder="https://surajkumal.com.np/some/long/path"
+            placeholder="https://surajkumal.com.np/some/short/path"
             oninput="document.getElementById('charcount').textContent = this.value.length + ' CHARACTERS'">
         </div>
 
         <div class="flex items-center justify-between">
           <span class="index-num">02 — GENERATE</span>
-          <button class="btn" type="submit">Shorten </button>
+          <button class="btn" type="submit">MAKE IT LONG </button>
         </div>
 
       </form>
@@ -181,6 +183,9 @@ function copyShortURL(btn, url) {
       </div>
     </div>
   </div>
+
+
+
 
   <div class="py-10">
       <span class="index-num">04 — ELSEWHERE</span>
@@ -195,9 +200,9 @@ function copyShortURL(btn, url) {
         </a>
       </div>
 
-      <div class="tooltip" data-tip="Finally, a solution to a problem nobody had.">
-        <a href="/long">
-          <button class="btn">Make URL Longer 🙃</button>
+      <div class="tooltip">
+        <a href="/">
+          <button class="btn">Too much URL? Trim it.</button>
         </a>
       </div>
     </div>
