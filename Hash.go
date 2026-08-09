@@ -1,4 +1,4 @@
-package main
+package veryshort
 
 const mixMask = (1 << 32) - 1
 

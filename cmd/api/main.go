@@ -4,12 +4,14 @@ import (
 	"log"
 	"net/http"
 	"time"
+
+	veryshort "github.com/suraj-kumal/very-short"
 )
 
 func main() {
-	config := Load()
+	config := veryshort.Load()
 
-	conn, err := DatabaseConnection(config.DatabaseURL)
+	conn, err := veryshort.DatabaseConnection(config.DatabaseURL)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -18,8 +20,8 @@ func main() {
 	}
 	defer conn.Close()
 
-	store := NewStore(conn)
-	cache := NewCache(10000)
+	store := veryshort.NewStore(conn)
+	cache := veryshort.NewCache(10000)
 
 	// Cache warming — DB order is hottest-first (last_access_time DESC).
 	// Put() does addToFront, so insert in reverse to preserve that as MRU order.
@@ -32,10 +34,10 @@ func main() {
 		cache.Put(r.Hash, r.URL, r.Expire, false)
 	}
 
-	timeSync := NewSyncState()
+	timeSync := veryshort.NewSyncState()
 	timeSync.Set(time.Now())
 
-	h := New(store, config, cache, timeSync)
+	h := veryshort.New(store, config, cache, timeSync)
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
 	log.Println("listening on:", config.PORT)

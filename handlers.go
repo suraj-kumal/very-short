@@ -1,4 +1,4 @@
-package main
+package veryshort
 
 import (
 	"database/sql"
@@ -238,6 +238,7 @@ func (h *Handler) HomePage(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) LongURLPage(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, "static/long.html")
 }
+
 func (h *Handler) NotFoundHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusNotFound)
