@@ -1,8 +1,10 @@
-package veryshort
+package database
 
 import (
 	"database/sql"
 	"time"
+
+	"github.com/suraj-kumal/very-short/internal/cache"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -33,7 +35,7 @@ func DatabaseConnection(databaseURL string) (*sql.DB, error) {
 }
 
 // recieves database dependency and injects it into the store
-func NewStore(conn *sql.DB) *Store {
+func DatabaseStore(conn *sql.DB) *Store {
 	return &Store{conn: conn}
 }
 
@@ -72,7 +74,7 @@ func (s *Store) GetURLFromDB(hash string) (url string, expire time.Time, err err
 	return url, expire, nil
 }
 
-func (s *Store) UpdateLastAccessTimes(nodes []DirtyNode) error {
+func (s *Store) UpdateLastAccessTimes(nodes []cache.DirtyNode) error {
 	tx, err := s.conn.Begin()
 	if err != nil {
 		return err

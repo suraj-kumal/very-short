@@ -1,4 +1,4 @@
-package veryshort
+package config
 
 import (
 	"os"
@@ -10,7 +10,7 @@ import (
 type Config struct {
 	DatabaseURL         string
 	PORT                string
-	SITE_URL            string
+	SiteURL             string
 	MixMultiplierSecret int
 }
 
@@ -27,7 +27,7 @@ func Load() Config {
 	return Config{
 		DatabaseURL:         os.Getenv("DATABASE_URL"),
 		PORT:                ":" + os.Getenv("PORT"),
-		SITE_URL:            os.Getenv("SITE_URL"),
+		SiteURL:             os.Getenv("SITE_URL"),
 		MixMultiplierSecret: multiplier,
 	}
 }

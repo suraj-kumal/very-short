@@ -1,4 +1,4 @@
-package veryshort
+package timesync
 
 import (
 	"sync"

@@ -1,4 +1,4 @@
-package veryshort
+package handlers
 
 import (
 	"database/sql"
@@ -9,6 +9,11 @@ import (
 	"os"
 	"text/template"
 	"time"
+
+	"github.com/suraj-kumal/very-short/internal/cache"
+	"github.com/suraj-kumal/very-short/internal/config"
+	"github.com/suraj-kumal/very-short/internal/encode"
+	"github.com/suraj-kumal/very-short/internal/models"
 )
 
 type URLStore interface {
@@ -18,14 +23,14 @@ type URLStore interface {
 	UpdateHashToDB(tx *sql.Tx, id int, hash string) error
 	GetURLFromDB(hash string) (string, time.Time, error)
 
-	UpdateLastAccessTimes(nodes []DirtyNode) error
+	UpdateLastAccessTimes(nodes []cache.DirtyNode) error
 }
 
 type CacheStore interface {
 	Get(hash string) (string, bool)
 	Put(hash, url string, expire time.Time, dirty bool)
-	GetDirtyNodes() []DirtyNode
-	MarkClean(nodes []DirtyNode)
+	GetDirtyNodes() []cache.DirtyNode
+	MarkClean(nodes []cache.DirtyNode)
 	Touch(hash string)
 }
 
@@ -39,12 +44,12 @@ type LastSync interface {
 
 type Handler struct {
 	store         URLStore
-	config        Config
+	config        config.Config
 	cache         CacheStore
 	lastSyncState LastSync
 }
 
-func New(s URLStore, config Config, cache CacheStore, lastSyncState LastSync) *Handler {
+func HandlerStore(s URLStore, config config.Config, cache CacheStore, lastSyncState LastSync) *Handler {
 	return &Handler{
 		store:         s,
 		config:        config,
@@ -97,7 +102,7 @@ func (h *Handler) CreateShortURL(w http.ResponseWriter, r *http.Request) {
 		writeResult(w, http.StatusBadRequest, resultErrorTmpl, struct{ Message string }{"Invalid request body."})
 		return
 	}
-	ur := CreateShortURLRequest{URL: r.FormValue("url")}
+	ur := models.CreateShortURLRequest{URL: r.FormValue("url")}
 	if !isValidURL(ur.URL) {
 		writeResult(w, http.StatusBadRequest, resultErrorTmpl, struct{ Message string }{"URL must include http:// or https://"})
 		return
@@ -116,7 +121,7 @@ func (h *Handler) CreateShortURL(w http.ResponseWriter, r *http.Request) {
 		writeResult(w, http.StatusInternalServerError, resultErrorTmpl, struct{ Message string }{"Something went wrong."})
 		return
 	}
-	hash := EncodeBase62(id, h.config.MixMultiplierSecret)
+	hash := encode.EncodeBase62(id, h.config.MixMultiplierSecret)
 	if err := h.store.UpdateHashToDB(tx, id, hash); err != nil {
 		log.Println("update error:", err)
 		writeResult(w, http.StatusInternalServerError, resultErrorTmpl, struct{ Message string }{"Something went wrong."})
@@ -128,7 +133,7 @@ func (h *Handler) CreateShortURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	shortURL := h.config.SITE_URL + "/" + hash
+	shortURL := h.config.SiteURL + "/" + hash
 	writeResult(w, http.StatusCreated, resultSuccessTmpl, struct{ ShortURL string }{shortURL})
 }
 
@@ -195,7 +200,7 @@ func (h *Handler) CreateLongURL(w http.ResponseWriter, r *http.Request) {
 		writeResult(w, http.StatusBadRequest, resultErrorTmpl, struct{ Message string }{"Invalid request body."})
 		return
 	}
-	ur := CreateShortURLRequest{URL: r.FormValue("url")}
+	ur := models.CreateShortURLRequest{URL: r.FormValue("url")}
 	if !isValidURL(ur.URL) {
 		writeResult(w, http.StatusBadRequest, resultErrorTmpl, struct{ Message string }{"URL must include http:// or https://"})
 		return
@@ -214,7 +219,7 @@ func (h *Handler) CreateLongURL(w http.ResponseWriter, r *http.Request) {
 		writeResult(w, http.StatusInternalServerError, resultErrorTmpl, struct{ Message string }{"Something went wrong."})
 		return
 	}
-	hash := EncodeBase62(id, h.config.MixMultiplierSecret)
+	hash := encode.EncodeBase62(id, h.config.MixMultiplierSecret)
 	if err := h.store.UpdateHashToDB(tx, id, hash); err != nil {
 		log.Println("update error:", err)
 		writeResult(w, http.StatusInternalServerError, resultErrorTmpl, struct{ Message string }{"Something went wrong."})
@@ -226,7 +231,7 @@ func (h *Handler) CreateLongURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	shortURL := h.config.SITE_URL + `/this/is/a/very/very/very/very/very/very/very/very/very/very/long/url/path/with/many/very/very/very/very/very/very/very/very/very/very/long/segments/that/keep/going/on/and/on/without/ending/until/it/becomes/an/extremely/long/url/path/with/more/very/very/very/very/very/very/very/very/very/very/very/very/long/parts/and/even/more/segments/that/continue/for/a/long/time/` + hash
+	shortURL := h.config.SiteURL + `/this/is/a/very/very/very/very/very/very/very/very/very/very/long/url/path/with/many/very/very/very/very/very/very/very/very/very/very/long/segments/that/keep/going/on/and/on/without/ending/until/it/becomes/an/extremely/long/url/path/with/more/very/very/very/very/very/very/very/very/very/very/very/very/long/parts/and/even/more/segments/that/continue/for/a/long/time/` + hash
 
 	writeResult(w, http.StatusCreated, resultSuccessTmpl, struct{ ShortURL string }{shortURL})
 }

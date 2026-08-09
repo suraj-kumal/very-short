@@ -5,13 +5,17 @@ import (
 	"net/http"
 	"time"
 
-	veryshort "github.com/suraj-kumal/very-short"
+	"github.com/suraj-kumal/very-short/internal/cache"
+	"github.com/suraj-kumal/very-short/internal/config"
+	"github.com/suraj-kumal/very-short/internal/database"
+	"github.com/suraj-kumal/very-short/internal/handlers"
+	timesync "github.com/suraj-kumal/very-short/internal/syncTime"
 )
 
 func main() {
-	config := veryshort.Load()
+	cfg := config.Load()
 
-	conn, err := veryshort.DatabaseConnection(config.DatabaseURL)
+	conn, err := database.DatabaseConnection(cfg.DatabaseURL)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -20,8 +24,8 @@ func main() {
 	}
 	defer conn.Close()
 
-	store := veryshort.NewStore(conn)
-	cache := veryshort.NewCache(10000)
+	store := database.DatabaseStore(conn)
+	cache := cache.NewCache(10000)
 
 	// Cache warming — DB order is hottest-first (last_access_time DESC).
 	// Put() does addToFront, so insert in reverse to preserve that as MRU order.
@@ -34,14 +38,14 @@ func main() {
 		cache.Put(r.Hash, r.URL, r.Expire, false)
 	}
 
-	timeSync := veryshort.NewSyncState()
+	timeSync := timesync.NewSyncState()
 	timeSync.Set(time.Now())
 
-	h := veryshort.New(store, config, cache, timeSync)
+	h := handlers.HandlerStore(store, cfg, cache, timeSync)
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
-	log.Println("listening on:", config.PORT)
-	if err := http.ListenAndServe(config.PORT, mux); err != nil {
+	log.Println("listening on:", cfg.PORT)
+	if err := http.ListenAndServe(cfg.PORT, mux); err != nil {
 		log.Println("server error:", err)
 	}
 }

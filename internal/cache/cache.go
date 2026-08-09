@@ -1,4 +1,4 @@
-package veryshort
+package cache
 
 import (
 	"sync"

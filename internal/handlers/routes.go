@@ -1,4 +1,4 @@
-package veryshort
+package handlers
 
 import "net/http"
 
