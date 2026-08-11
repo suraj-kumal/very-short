@@ -41,7 +41,7 @@ func main() {
 	timeSync := timesync.NewSyncState()
 	timeSync.Set(time.Now())
 
-	h := handlers.HandlerStore(store, cfg, cache, timeSync)
+	h := handlers.HandlerStore(store, cfg.SiteURL, cfg.MixMultiplierSecret, cache, timeSync)
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
 	log.Println("listening on:", cfg.PORT)

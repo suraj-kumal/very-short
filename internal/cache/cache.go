@@ -3,6 +3,8 @@ package cache
 import (
 	"sync"
 	"time"
+
+	"github.com/suraj-kumal/very-short/internal/contracts"
 )
 
 type Cache struct {
@@ -28,12 +30,13 @@ type Node struct {
 	prev *Node
 }
 
+/*
 type DirtyNode struct {
 	Hash           string
 	LastAccessTime time.Time
 }
+*/
 
-// constructor
 func NewCache(capacaity int) *Cache {
 	return &Cache{
 		capacaity: capacaity,
@@ -150,15 +153,15 @@ func (c *Cache) Put(hash, url string, expire time.Time, dirty bool) {
 	}
 }
 
-func (c *Cache) GetDirtyNodes() []DirtyNode {
+func (c *Cache) GetDirtyNodes() []contracts.DirtyNode {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	dirtyNodes := make([]DirtyNode, 0)
+	dirtyNodes := make([]contracts.DirtyNode, 0)
 
 	for _, node := range c.items {
 		if node.dirty {
-			dirtyNodes = append(dirtyNodes, DirtyNode{
+			dirtyNodes = append(dirtyNodes, contracts.DirtyNode{
 				Hash:           node.hash,
 				LastAccessTime: node.lastAccessTime,
 			})
@@ -168,7 +171,7 @@ func (c *Cache) GetDirtyNodes() []DirtyNode {
 	return dirtyNodes
 }
 
-func (c *Cache) MarkClean(nodes []DirtyNode) {
+func (c *Cache) MarkClean(nodes []contracts.DirtyNode) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
