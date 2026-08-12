@@ -9,7 +9,7 @@ import (
 	"github.com/suraj-kumal/very-short/internal/config"
 	"github.com/suraj-kumal/very-short/internal/database"
 	"github.com/suraj-kumal/very-short/internal/handlers"
-	timesync "github.com/suraj-kumal/very-short/internal/syncTime"
+	"github.com/suraj-kumal/very-short/internal/timesync"
 )
 
 func main() {
