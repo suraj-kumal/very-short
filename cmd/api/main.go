@@ -9,6 +9,7 @@ import (
 	"github.com/suraj-kumal/very-short/internal/config"
 	"github.com/suraj-kumal/very-short/internal/database"
 	"github.com/suraj-kumal/very-short/internal/handlers"
+	"github.com/suraj-kumal/very-short/internal/middleware"
 	"github.com/suraj-kumal/very-short/internal/timesync"
 )
 
@@ -41,7 +42,9 @@ func main() {
 	timeSync := timesync.NewSyncState()
 	timeSync.Set(time.Now())
 
-	h := handlers.HandlerStore(store, cfg.SiteURL, cfg.MixMultiplierSecret, cache, timeSync)
+	limiter := middleware.NewLimiter(100)
+
+	h := handlers.HandlerStore(store, cfg.SiteURL, cfg.MixMultiplierSecret, cache, timeSync, limiter)
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
 	log.Println("listening on:", cfg.PORT)

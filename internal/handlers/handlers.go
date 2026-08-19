@@ -33,6 +33,10 @@ type CacheStore interface {
 	Touch(hash string)
 }
 
+type ConcurrencyLimiter interface {
+	Limit(http.Handler) http.Handler
+}
+
 type LastSync interface {
 	Set(time.Time)
 	Get() time.Time
@@ -47,15 +51,17 @@ type Handler struct {
 	MixMultiplierSecret int
 	cache               CacheStore
 	lastSyncState       LastSync
+	concurrencyLimiter  ConcurrencyLimiter
 }
 
-func HandlerStore(s URLStore, SiteURL string, MixMultiplierSecret int, cache CacheStore, lastSyncState LastSync) *Handler {
+func HandlerStore(s URLStore, SiteURL string, MixMultiplierSecret int, cache CacheStore, lastSyncState LastSync, concurrencyLimiter ConcurrencyLimiter) *Handler {
 	return &Handler{
 		store:               s,
 		SiteURL:             SiteURL,
 		MixMultiplierSecret: MixMultiplierSecret,
 		cache:               cache,
 		lastSyncState:       lastSyncState,
+		concurrencyLimiter:  concurrencyLimiter,
 	}
 }
 
