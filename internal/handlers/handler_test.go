@@ -74,6 +74,23 @@ func (f *fakeCache) Touch(hash string) {
 	f.lastTouchedHash = hash
 }
 
+// ---------------------------------------------------------
+// Fake Concurrency Limiter
+// ---------------------------------------------------------
+
+type fakeConcurrencyLimiter struct {
+	limitCalled bool
+}
+
+func (f *fakeConcurrencyLimiter) Limit(next http.Handler) http.Handler {
+	f.limitCalled = true
+	return next
+}
+
+// ---------------------------------------------------------
+// Fake Last Sync
+// ---------------------------------------------------------
+
 type fakeLastSync struct {
 	tryStartResult bool
 	finishCalled   bool
@@ -96,6 +113,10 @@ func (f *fakeLastSync) TryStartSync() bool {
 func (f *fakeLastSync) FinishSync() {
 	f.finishCalled = true
 }
+
+// ---------------------------------------------------------
+// Fake URL Store
+// ---------------------------------------------------------
 
 type fakeURLStore struct {
 	beginTxFunc           func() (*sql.Tx, error)
@@ -121,7 +142,11 @@ func (f *fakeURLStore) InsertURLToDB(tx *sql.Tx, url string) (int, error) {
 	return 0, errors.New("not implemented")
 }
 
-func (f *fakeURLStore) UpdateHashToDB(tx *sql.Tx, id int, hash string) error {
+func (f *fakeURLStore) UpdateHashToDB(
+	tx *sql.Tx,
+	id int,
+	hash string,
+) error {
 	if f.updateHashFunc != nil {
 		return f.updateHashFunc(tx, id, hash)
 	}
@@ -129,7 +154,9 @@ func (f *fakeURLStore) UpdateHashToDB(tx *sql.Tx, id int, hash string) error {
 	return errors.New("not implemented")
 }
 
-func (f *fakeURLStore) GetURLFromDB(hash string) (string, time.Time, error) {
+func (f *fakeURLStore) GetURLFromDB(
+	hash string,
+) (string, time.Time, error) {
 	if f.getURLFunc != nil {
 		return f.getURLFunc(hash)
 	}
@@ -137,7 +164,9 @@ func (f *fakeURLStore) GetURLFromDB(hash string) (string, time.Time, error) {
 	return "", time.Time{}, errors.New("not implemented")
 }
 
-func (f *fakeURLStore) UpdateLastAccessTimes(nodes []contracts.DirtyNode) error {
+func (f *fakeURLStore) UpdateLastAccessTimes(
+	nodes []contracts.DirtyNode,
+) error {
 	if f.updateAccessTimesFunc != nil {
 		return f.updateAccessTimesFunc(nodes)
 	}
@@ -160,6 +189,7 @@ func newHandler(
 		testMixMultiple,
 		cache,
 		lastSync,
+		&fakeConcurrencyLimiter{},
 	)
 }
 
@@ -215,7 +245,12 @@ func TestIsValidURL(t *testing.T) {
 			got := isValidURL(tt.url)
 
 			if got != tt.want {
-				t.Errorf("isValidURL(%q) = %v, want %v", tt.url, got, tt.want)
+				t.Errorf(
+					"isValidURL(%q) = %v, want %v",
+					tt.url,
+					got,
+					tt.want,
+				)
 			}
 		})
 	}
@@ -239,11 +274,15 @@ func TestCreateShortURL(t *testing.T) {
 			setupMock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectBegin()
 
-				mock.ExpectExec(`INSERT INTO url_data \(url\) VALUES \(\?\)`).
+				mock.ExpectExec(
+					`INSERT INTO url_data \(url\) VALUES \(\?\)`,
+				).
 					WithArgs("https://example.com").
 					WillReturnResult(sqlmock.NewResult(10, 1))
 
-				mock.ExpectExec(`UPDATE url_data SET hash = \? WHERE id = \?`).
+				mock.ExpectExec(
+					`UPDATE url_data SET hash = \? WHERE id = \?`,
+				).
 					WithArgs("A", 10).
 					WillReturnResult(sqlmock.NewResult(0, 1))
 
@@ -277,7 +316,9 @@ func TestCreateShortURL(t *testing.T) {
 			setupMock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectBegin()
 
-				mock.ExpectExec(`INSERT INTO url_data \(url\) VALUES \(\?\)`).
+				mock.ExpectExec(
+					`INSERT INTO url_data \(url\) VALUES \(\?\)`,
+				).
 					WithArgs("https://example.com").
 					WillReturnError(errors.New("insert failed"))
 
@@ -292,11 +333,15 @@ func TestCreateShortURL(t *testing.T) {
 			setupMock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectBegin()
 
-				mock.ExpectExec(`INSERT INTO url_data \(url\) VALUES \(\?\)`).
+				mock.ExpectExec(
+					`INSERT INTO url_data \(url\) VALUES \(\?\)`,
+				).
 					WithArgs("https://example.com").
 					WillReturnResult(sqlmock.NewResult(10, 1))
 
-				mock.ExpectExec(`UPDATE url_data SET hash = \? WHERE id = \?`).
+				mock.ExpectExec(
+					`UPDATE url_data SET hash = \? WHERE id = \?`,
+				).
 					WithArgs("A", 10).
 					WillReturnError(errors.New("update failed"))
 
@@ -316,7 +361,11 @@ func TestCreateShortURL(t *testing.T) {
 				beginTxFunc: func() (*sql.Tx, error) {
 					return db.Begin()
 				},
-				insertURLFunc: func(tx *sql.Tx, url string) (int, error) {
+
+				insertURLFunc: func(
+					tx *sql.Tx,
+					url string,
+				) (int, error) {
 					result, err := tx.Exec(
 						"INSERT INTO url_data (url) VALUES (?)",
 						url,
@@ -328,12 +377,18 @@ func TestCreateShortURL(t *testing.T) {
 					id, err := result.LastInsertId()
 					return int(id), err
 				},
-				updateHashFunc: func(tx *sql.Tx, id int, hash string) error {
+
+				updateHashFunc: func(
+					tx *sql.Tx,
+					id int,
+					hash string,
+				) error {
 					_, err := tx.Exec(
 						"UPDATE url_data SET hash = ? WHERE id = ?",
 						hash,
 						id,
 					)
+
 					return err
 				},
 			}
@@ -341,24 +396,39 @@ func TestCreateShortURL(t *testing.T) {
 			cache := newFakeCache()
 			lastSync := &fakeLastSync{}
 
-			h := newHandler(store, cache, lastSync)
+			h := newHandler(
+				store,
+				cache,
+				lastSync,
+			)
 
 			req := httptest.NewRequest(
 				http.MethodPost,
 				"/shorten",
 				strings.NewReader(tt.form),
 			)
-			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+			req.Header.Set(
+				"Content-Type",
+				"application/x-www-form-urlencoded",
+			)
 
 			rec := httptest.NewRecorder()
 
 			h.CreateShortURL(rec, req)
 
 			if rec.Code != tt.wantStatus {
-				t.Errorf("status = %d, want %d", rec.Code, tt.wantStatus)
+				t.Errorf(
+					"status = %d, want %d",
+					rec.Code,
+					tt.wantStatus,
+				)
 			}
 
-			if !strings.Contains(rec.Body.String(), tt.wantBody) {
+			if !strings.Contains(
+				rec.Body.String(),
+				tt.wantBody,
+			) {
 				t.Errorf(
 					"body does not contain %q: %s",
 					tt.wantBody,
@@ -367,7 +437,10 @@ func TestCreateShortURL(t *testing.T) {
 			}
 
 			if err := mock.ExpectationsWereMet(); err != nil {
-				t.Errorf("unmet SQL expectations: %v", err)
+				t.Errorf(
+					"unmet SQL expectations: %v",
+					err,
+				)
 			}
 		})
 	}
@@ -387,9 +460,18 @@ func TestRedirectURLCacheHit(t *testing.T) {
 		tryStartResult: false,
 	}
 
-	h := newHandler(store, cache, lastSync)
+	h := newHandler(
+		store,
+		cache,
+		lastSync,
+	)
 
-	req := httptest.NewRequest(http.MethodGet, "/abc", nil)
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/abc",
+		nil,
+	)
+
 	req.SetPathValue("hash", "abc")
 
 	rec := httptest.NewRecorder()
@@ -397,7 +479,11 @@ func TestRedirectURLCacheHit(t *testing.T) {
 	h.RedirectURL(rec, req)
 
 	if rec.Code != http.StatusFound {
-		t.Errorf("status = %d, want %d", rec.Code, http.StatusFound)
+		t.Errorf(
+			"status = %d, want %d",
+			rec.Code,
+			http.StatusFound,
+		)
 	}
 
 	if location := rec.Header().Get("Location"); location != "https://example.com" {
@@ -423,9 +509,14 @@ func TestRedirectURLCacheMiss(t *testing.T) {
 	expire := time.Now().Add(time.Hour)
 
 	store := &fakeURLStore{
-		getURLFunc: func(hash string) (string, time.Time, error) {
+		getURLFunc: func(
+			hash string,
+		) (string, time.Time, error) {
 			if hash != "abc" {
-				t.Errorf("hash = %q, want abc", hash)
+				t.Errorf(
+					"hash = %q, want abc",
+					hash,
+				)
 			}
 
 			return "https://example.com", expire, nil
@@ -436,9 +527,18 @@ func TestRedirectURLCacheMiss(t *testing.T) {
 		tryStartResult: false,
 	}
 
-	h := newHandler(store, cache, lastSync)
+	h := newHandler(
+		store,
+		cache,
+		lastSync,
+	)
 
-	req := httptest.NewRequest(http.MethodGet, "/abc", nil)
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/abc",
+		nil,
+	)
+
 	req.SetPathValue("hash", "abc")
 
 	rec := httptest.NewRecorder()
@@ -446,7 +546,11 @@ func TestRedirectURLCacheMiss(t *testing.T) {
 	h.RedirectURL(rec, req)
 
 	if rec.Code != http.StatusFound {
-		t.Errorf("status = %d, want %d", rec.Code, http.StatusFound)
+		t.Errorf(
+			"status = %d, want %d",
+			rec.Code,
+			http.StatusFound,
+		)
 	}
 
 	if location := rec.Header().Get("Location"); location != "https://example.com" {
@@ -462,7 +566,10 @@ func TestRedirectURLCacheMiss(t *testing.T) {
 	}
 
 	if cache.lastPutHash != "abc" {
-		t.Errorf("Put hash = %q, want abc", cache.lastPutHash)
+		t.Errorf(
+			"Put hash = %q, want abc",
+			cache.lastPutHash,
+		)
 	}
 
 	if !cache.touchCalled {
@@ -485,7 +592,9 @@ func TestRedirectURLNotFound(t *testing.T) {
 	cache := newFakeCache()
 
 	store := &fakeURLStore{
-		getURLFunc: func(hash string) (string, time.Time, error) {
+		getURLFunc: func(
+			hash string,
+		) (string, time.Time, error) {
 			return "", time.Time{}, sql.ErrNoRows
 		},
 	}
@@ -494,9 +603,18 @@ func TestRedirectURLNotFound(t *testing.T) {
 		tryStartResult: false,
 	}
 
-	h := newHandler(store, cache, lastSync)
+	h := newHandler(
+		store,
+		cache,
+		lastSync,
+	)
 
-	req := httptest.NewRequest(http.MethodGet, "/missing", nil)
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/missing",
+		nil,
+	)
+
 	req.SetPathValue("hash", "missing")
 
 	rec := httptest.NewRecorder()
@@ -504,7 +622,11 @@ func TestRedirectURLNotFound(t *testing.T) {
 	h.RedirectURL(rec, req)
 
 	if rec.Code != http.StatusNotFound {
-		t.Errorf("status = %d, want %d", rec.Code, http.StatusNotFound)
+		t.Errorf(
+			"status = %d, want %d",
+			rec.Code,
+			http.StatusNotFound,
+		)
 	}
 }
 
@@ -516,7 +638,9 @@ func TestRedirectURLDatabaseError(t *testing.T) {
 	cache := newFakeCache()
 
 	store := &fakeURLStore{
-		getURLFunc: func(hash string) (string, time.Time, error) {
+		getURLFunc: func(
+			hash string,
+		) (string, time.Time, error) {
 			return "", time.Time{}, errors.New("database failure")
 		},
 	}
@@ -525,9 +649,18 @@ func TestRedirectURLDatabaseError(t *testing.T) {
 		tryStartResult: false,
 	}
 
-	h := newHandler(store, cache, lastSync)
+	h := newHandler(
+		store,
+		cache,
+		lastSync,
+	)
 
-	req := httptest.NewRequest(http.MethodGet, "/abc", nil)
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/abc",
+		nil,
+	)
+
 	req.SetPathValue("hash", "abc")
 
 	rec := httptest.NewRecorder()
@@ -551,8 +684,12 @@ func TestRedirectURLExpired(t *testing.T) {
 	cache := newFakeCache()
 
 	store := &fakeURLStore{
-		getURLFunc: func(hash string) (string, time.Time, error) {
-			return "https://example.com", time.Now().Add(-time.Hour), nil
+		getURLFunc: func(
+			hash string,
+		) (string, time.Time, error) {
+			return "https://example.com",
+				time.Now().Add(-time.Hour),
+				nil
 		},
 	}
 
@@ -560,9 +697,18 @@ func TestRedirectURLExpired(t *testing.T) {
 		tryStartResult: false,
 	}
 
-	h := newHandler(store, cache, lastSync)
+	h := newHandler(
+		store,
+		cache,
+		lastSync,
+	)
 
-	req := httptest.NewRequest(http.MethodGet, "/abc", nil)
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/abc",
+		nil,
+	)
+
 	req.SetPathValue("hash", "abc")
 
 	rec := httptest.NewRecorder()
@@ -584,7 +730,9 @@ func TestSyncLastAccessTimeNoDirtyNodes(t *testing.T) {
 	storeCalled := false
 
 	store := &fakeURLStore{
-		updateAccessTimesFunc: func(nodes []contracts.DirtyNode) error {
+		updateAccessTimesFunc: func(
+			nodes []contracts.DirtyNode,
+		) error {
 			storeCalled = true
 			return nil
 		},
@@ -592,16 +740,24 @@ func TestSyncLastAccessTimeNoDirtyNodes(t *testing.T) {
 
 	lastSync := &fakeLastSync{}
 
-	h := newHandler(store, cache, lastSync)
+	h := newHandler(
+		store,
+		cache,
+		lastSync,
+	)
 
 	h.SyncLastAccessTime()
 
 	if storeCalled {
-		t.Error("expected database update not to be called")
+		t.Error(
+			"expected database update not to be called",
+		)
 	}
 
 	if cache.markCleanCalled {
-		t.Error("expected MarkClean not to be called")
+		t.Error(
+			"expected MarkClean not to be called",
+		)
 	}
 }
 
@@ -624,18 +780,27 @@ func TestSyncLastAccessTimeSuccess(t *testing.T) {
 	var gotNodes []contracts.DirtyNode
 
 	store := &fakeURLStore{
-		updateAccessTimesFunc: func(nodes []contracts.DirtyNode) error {
+		updateAccessTimesFunc: func(
+			nodes []contracts.DirtyNode,
+		) error {
 			gotNodes = nodes
 			return nil
 		},
 	}
 
-	h := newHandler(store, cache, &fakeLastSync{})
+	h := newHandler(
+		store,
+		cache,
+		&fakeLastSync{},
+	)
 
 	h.SyncLastAccessTime()
 
 	if len(gotNodes) != 1 {
-		t.Fatalf("got %d nodes, want 1", len(gotNodes))
+		t.Fatalf(
+			"got %d nodes, want 1",
+			len(gotNodes),
+		)
 	}
 
 	if gotNodes[0].Hash != "abc" {
@@ -647,7 +812,9 @@ func TestSyncLastAccessTimeSuccess(t *testing.T) {
 	}
 
 	if !cache.markCleanCalled {
-		t.Error("expected MarkClean to be called")
+		t.Error(
+			"expected MarkClean to be called",
+		)
 	}
 }
 
@@ -666,17 +833,25 @@ func TestSyncLastAccessTimeDatabaseError(t *testing.T) {
 	}
 
 	store := &fakeURLStore{
-		updateAccessTimesFunc: func(nodes []contracts.DirtyNode) error {
+		updateAccessTimesFunc: func(
+			nodes []contracts.DirtyNode,
+		) error {
 			return errors.New("database failure")
 		},
 	}
 
-	h := newHandler(store, cache, &fakeLastSync{})
+	h := newHandler(
+		store,
+		cache,
+		&fakeLastSync{},
+	)
 
 	h.SyncLastAccessTime()
 
 	if cache.markCleanCalled {
-		t.Error("expected MarkClean not to be called after database failure")
+		t.Error(
+			"expected MarkClean not to be called after database failure",
+		)
 	}
 }
 
@@ -689,11 +864,15 @@ func TestCreateLongURL(t *testing.T) {
 
 	mock.ExpectBegin()
 
-	mock.ExpectExec(`INSERT INTO url_data \(url\) VALUES \(\?\)`).
+	mock.ExpectExec(
+		`INSERT INTO url_data \(url\) VALUES \(\?\)`,
+	).
 		WithArgs("https://example.com").
 		WillReturnResult(sqlmock.NewResult(10, 1))
 
-	mock.ExpectExec(`UPDATE url_data SET hash = \? WHERE id = \?`).
+	mock.ExpectExec(
+		`UPDATE url_data SET hash = \? WHERE id = \?`,
+	).
 		WithArgs("A", 10).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
@@ -703,7 +882,11 @@ func TestCreateLongURL(t *testing.T) {
 		beginTxFunc: func() (*sql.Tx, error) {
 			return db.Begin()
 		},
-		insertURLFunc: func(tx *sql.Tx, url string) (int, error) {
+
+		insertURLFunc: func(
+			tx *sql.Tx,
+			url string,
+		) (int, error) {
 			result, err := tx.Exec(
 				"INSERT INTO url_data (url) VALUES (?)",
 				url,
@@ -713,14 +896,21 @@ func TestCreateLongURL(t *testing.T) {
 			}
 
 			id, err := result.LastInsertId()
+
 			return int(id), err
 		},
-		updateHashFunc: func(tx *sql.Tx, id int, hash string) error {
+
+		updateHashFunc: func(
+			tx *sql.Tx,
+			id int,
+			hash string,
+		) error {
 			_, err := tx.Exec(
 				"UPDATE url_data SET hash = ? WHERE id = ?",
 				hash,
 				id,
 			)
+
 			return err
 		},
 	}
@@ -734,9 +924,15 @@ func TestCreateLongURL(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/long",
-		strings.NewReader("url=https%3A%2F%2Fexample.com"),
+		strings.NewReader(
+			"url=https%3A%2F%2Fexample.com",
+		),
 	)
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	req.Header.Set(
+		"Content-Type",
+		"application/x-www-form-urlencoded",
+	)
 
 	rec := httptest.NewRecorder()
 
@@ -750,15 +946,70 @@ func TestCreateLongURL(t *testing.T) {
 		)
 	}
 
-	if !strings.Contains(rec.Body.String(), "CREATED") {
+	if !strings.Contains(
+		rec.Body.String(),
+		"CREATED",
+	) {
 		t.Error("expected CREATED in response")
 	}
 
-	if !strings.Contains(rec.Body.String(), "/A") {
+	if !strings.Contains(
+		rec.Body.String(),
+		"/A",
+	) {
 		t.Error("expected generated hash A in response")
 	}
 
 	if err := mock.ExpectationsWereMet(); err != nil {
-		t.Errorf("unmet SQL expectations: %v", err)
+		t.Errorf(
+			"unmet SQL expectations: %v",
+			err,
+		)
+	}
+}
+
+// ---------------------------------------------------------
+// ConcurrencyLimiter
+// ---------------------------------------------------------
+
+func TestFakeConcurrencyLimiter(t *testing.T) {
+	limiter := &fakeConcurrencyLimiter{}
+
+	called := false
+
+	next := http.HandlerFunc(func(
+		w http.ResponseWriter,
+		r *http.Request,
+	) {
+		called = true
+		w.WriteHeader(http.StatusOK)
+	})
+
+	handler := limiter.Limit(next)
+
+	if !limiter.limitCalled {
+		t.Error("expected Limit to be called")
+	}
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/",
+		nil,
+	)
+
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if !called {
+		t.Error("expected wrapped handler to be called")
+	}
+
+	if rec.Code != http.StatusOK {
+		t.Errorf(
+			"status = %d, want %d",
+			rec.Code,
+			http.StatusOK,
+		)
 	}
 }
